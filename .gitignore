@@ -1,0 +1,6 @@
+.vscode
+*.log
+*.swp
+.idea
+.DS_Store
+*.exe
