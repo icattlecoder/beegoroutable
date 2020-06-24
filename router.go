@@ -7,11 +7,15 @@ import (
 )
 
 func getFuncName(f interface{}) string {
+
 	name := runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
 	i := strings.LastIndex(name, ".")
 	name = name[i+1:]
-	i = strings.LastIndex(name, "-")
-	name = name[:i]
+
+	// trim method -fm suffix
+	if i = strings.LastIndex(name, "-"); i > 0 {
+		name = name[:i]
+	}
 	return name
 }
 
