@@ -110,6 +110,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 )
 
 type (
@@ -127,11 +128,16 @@ type (
 		ApiError
 		Result interface{} ` + "`json:\"result\"`" + `
 	}
+
+	Param struct {
+		Header http.Header
+		Query  url.Values
+	}
 )
 
 type {{.ClientName}} interface {
     {{range .Apis}}
-    {{.Name}}(ctx context.Context, {{range $_, $i := .Params}}{{$i}} interface{},{{end}}result interface{}) error
+    {{.Name}}(ctx context.Context, {{range $_, $i := .Params}}{{$i}} interface{},{{end}}result interface{}, params ...Param) error
     {{end}}
 }
 
@@ -160,7 +166,26 @@ func encode(body interface{}) io.Reader {
 	return &buf
 }
 
-func (c *Client) do(req *http.Request, result interface{}) error {
+func (c *Client) do(req *http.Request, result interface{}, params ...Param) error {
+
+	q := req.URL.Query()
+	changed := false
+	for _, p := range params {
+		if p.Header != nil {
+			for k, vs := range p.Header {
+				for _, v := range vs {
+					req.Header.Add(k, v)
+				}
+			}
+		}
+		for k, _ := range p.Query {
+			q.Set(k, p.Query.Get(k))
+			changed = true
+		}
+	}
+	if changed {
+		req.URL.RawQuery = q.Encode()
+	}
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
@@ -183,7 +208,7 @@ func (c *Client) do(req *http.Request, result interface{}) error {
 }
 
 {{range $api := .Apis}}
-func (c *Client) {{$api.Name}}(ctx context.Context, {{range $_,$i := $api.Params}}{{$i}} interface{},{{end}} result interface{}) error {
+func (c *Client) {{$api.Name}}(ctx context.Context, {{range $_,$i := $api.Params}}{{$i}} interface{},{{end}} result interface{}, params ...Param) error {
 	urlStr := c.Endpoint + fmt.Sprintf("{{$api.Path}}"{{range $__,$p := $api.PathParams}}, {{$p}} {{end}})
 	
 	req, err := http.NewRequest("{{$api.Method}}", urlStr, encode({{$api.Body}}))
@@ -193,7 +218,7 @@ func (c *Client) {{$api.Name}}(ctx context.Context, {{range $_,$i := $api.Params
 	if ctx != nil {
 		req = req.WithContext(ctx)
 	}
-	return c.do(req, result)
+	return c.do(req, result, params...)
 }
 {{end}}
 `
