@@ -151,12 +151,12 @@ func New(endPoint string, client *http.Client) {{.ClientName}} {
 	}
 }
 
-func decode(body interface{}) io.Reader {
+func encode(body interface{}) io.Reader {
 	if body == nil {
 		return nil
 	}
 	buf := bytes.Buffer{}
-	_ = json.NewDecoder(&buf).Decode(body)
+	_ = json.NewEncoder(&buf).Encode(body)
 	return &buf
 }
 
@@ -186,7 +186,7 @@ func (c *Client) do(req *http.Request, result interface{}) error {
 func (c *Client) {{$api.Name}}(ctx context.Context, {{range $_,$i := $api.Params}}{{$i}} interface{},{{end}} result interface{}) error {
 	urlStr := c.Endpoint + fmt.Sprintf("{{$api.Path}}"{{range $__,$p := $api.PathParams}}, {{$p}} {{end}})
 	
-	req, err := http.NewRequest("{{$api.Method}}", urlStr, decode({{$api.Body}}))
+	req, err := http.NewRequest("{{$api.Method}}", urlStr, encode({{$api.Body}}))
 	if err != nil {
 		return err
 	}
