@@ -12,13 +12,36 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
+	"github.com/iancoleman/strcase"
 	"github.com/icattlecoder/beegoroutable"
 )
 
 type Handler struct {
 	Method string
+	Object string
 	Func   string
+}
+
+func autoFunc(obj, funcName string) string {
+
+	if !isWellKnownFunc(funcName) {
+		return funcName
+	}
+
+	cleanObject := func(obj string) string {
+		ss := strings.Split(strcase.ToSnake(obj), "_")
+		var newSs []string
+		for _, s := range ss {
+			if isWellKnownObject(s) {
+				continue
+			}
+			newSs = append(newSs, s)
+		}
+		return strcase.ToCamel(strings.Join(newSs, "_"))
+	}
+	return strcase.ToCamel(funcName + "_" + cleanObject(obj))
 }
 
 type Router struct {
@@ -45,7 +68,7 @@ func (v *Visitor) HandleFound() {
 		for _, h := range r.Handler {
 
 			api := beegoroutable.Api{
-				Name:       h.Func,
+				Name:       autoFunc(h.Object, h.Func),
 				Path:       v.Prefix + r.Path,
 				PathParams: nil,
 				Params:     nil,
@@ -104,6 +127,7 @@ func getRouter(args []ast.Expr) Router {
 				if ok {
 					h := Handler{}
 					h.Method = callExpr.Fun.(*ast.Ident).Name
+					h.Object = callExpr.Args[0].(*ast.SelectorExpr).X.(*ast.SelectorExpr).Sel.Name
 					h.Func = callExpr.Args[0].(*ast.SelectorExpr).Sel.Name
 					r.Handler = append(r.Handler, h)
 				}
@@ -186,4 +210,32 @@ func ensureDir(f string) error {
 		return errors.New(f + "is not dir")
 	}
 	return nil
+}
+
+var (
+	wellKnownFuncNames = []string{"Create", "Delete", "Inspect", "Get", "List", "Update"}
+	wellKnownObject    = []string{"Default", "Controller"}
+)
+
+func isWellKnownFunc(funcName string) bool {
+	return contains(funcName, wellKnownFuncNames, false)
+}
+
+func isWellKnownObject(obj string) bool {
+	return contains(obj, wellKnownObject, true)
+}
+
+func contains(str string, strs []string, ignoreCase bool) bool {
+	eq := func(a, b string) bool {
+		if ignoreCase {
+			return strings.ToUpper(a) == strings.ToUpper(b)
+		}
+		return a == b
+	}
+	for _, s := range strs {
+		if eq(str, s) {
+			return true
+		}
+	}
+	return false
 }
