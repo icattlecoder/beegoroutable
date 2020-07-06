@@ -138,10 +138,11 @@ func getRouter(args []ast.Expr) Router {
 }
 
 var (
-	input  = flag.String("input", "", "input file")
-	output = flag.String("output", "", "output file, default is stdout")
-	pkg    = flag.String("pkg", "", "pkg name")
-	name   = flag.String("name", "", "client name, like DeckJob")
+	input         = flag.String("input", "", "input file")
+	output        = flag.String("output", "", "output file, default is stdout")
+	pkg           = flag.String("pkg", "", "pkg name")
+	name          = flag.String("name", "", "client name, like DeckJob")
+	pathParamType = flag.String("type", "", `path params type mapping, like "publish_id,app_id:int64;env:string"`)
 )
 
 func main() {
@@ -151,6 +152,10 @@ func main() {
 	if filename == "" {
 		flag.PrintDefaults()
 		return
+	}
+
+	if *pathParamType != "" {
+		beegoroutable.SetGlobalParamTypeMapping(*pathParamType)
 	}
 
 	fset := token.NewFileSet()
@@ -165,7 +170,7 @@ func main() {
 	v.HandleFound()
 	code, err := beegoroutable.GenerateCode(*pkg, *name, v.apis)
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatalln("GenerateCode failed:", err)
 	}
 	if *output == "" {
 		fmt.Println(code)

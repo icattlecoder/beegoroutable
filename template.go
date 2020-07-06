@@ -7,11 +7,42 @@ import (
 	"text/template"
 )
 
+// key is name, value is type, like publish_id => int64
+var paramTypeMapping = map[string]string{}
+
+func SetGlobalParamTypeMapping(m string) {
+	ss := strings.Split(m, ";")
+	for _, s := range ss {
+		if s == "" {
+			continue
+		}
+		m := strings.Split(s, ":")
+		if len(m) != 2 {
+			panic(`error param type mapping, must like "publish_id,app_id:int64,env:string"`)
+		}
+
+		ps := strings.Split(m[0], ",")
+		for _, p := range ps {
+			paramTypeMapping[strings.TrimPrefix(p, " ")] = strings.TrimPrefix(m[1], " ")
+		}
+	}
+}
+
+type Param struct {
+	Name string
+	Type string
+}
+
+var bodyParam = Param{
+	Name: "body",
+	Type: "interface{}",
+}
+
 type Api struct {
 	Name       string
 	Path       string
-	PathParams []string
-	Params     []string
+	PathParams []Param
+	Params     []Param
 	Method     string
 	Body       string
 }
@@ -20,6 +51,10 @@ func legalVarName(str string) string {
 
 	if str == "type" {
 		str = "typ"
+	}
+
+	if str == "body" {
+		return "body_"
 	}
 	return snakeToCam(str)
 }
@@ -38,6 +73,13 @@ func snakeToCam(str string) string {
 	return strings.Join(newSs, "")
 }
 
+func getParamType(n string) string {
+	if t, ok := paramTypeMapping[n]; ok {
+		return t
+	}
+	return "interface{}"
+}
+
 func (a *Api) parse() {
 
 	var pathItems []string
@@ -47,7 +89,12 @@ func (a *Api) parse() {
 			continue
 		}
 		pathItems = append(pathItems, "%v")
-		a.PathParams = append(a.PathParams, legalVarName(v[1:]))
+
+		param := Param{
+			Name: legalVarName(v[1:]),
+			Type: getParamType(v[1:]),
+		}
+		a.PathParams = append(a.PathParams, param)
 	}
 	a.Path = strings.Join(pathItems, "/")
 	a.Path = "/" + strings.TrimPrefix(a.Path, "/")
@@ -55,7 +102,7 @@ func (a *Api) parse() {
 	switch a.Method {
 	case "PUT", "POST":
 		a.Body = "body"
-		a.Params = append(a.Params, "body")
+		a.Params = append(a.Params, bodyParam)
 	default:
 		a.Body = "nil"
 	}
@@ -99,7 +146,6 @@ func doGen(api interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-
 const tplText = `// Code generated - DO NOT EDIT.
 package {{.Pkg}}
 
@@ -137,7 +183,7 @@ type (
 
 type {{.ClientName}} interface {
     {{range .Apis}}
-    {{.Name}}(ctx context.Context, {{range $_, $i := .Params}}{{$i}} interface{},{{end}}result interface{}, params ...Param) error
+    {{.Name}}(ctx context.Context, {{range $_, $i := .Params}}{{$i.Name}} {{$i.Type}},{{end}}result interface{}, params ...Param) error
     {{end}}
 }
 
@@ -208,8 +254,8 @@ func (c *Client) do(req *http.Request, result interface{}, params ...Param) erro
 }
 
 {{range $api := .Apis}}
-func (c *Client) {{$api.Name}}(ctx context.Context, {{range $_,$i := $api.Params}}{{$i}} interface{},{{end}} result interface{}, params ...Param) error {
-	urlStr := c.Endpoint + fmt.Sprintf("{{$api.Path}}"{{range $__,$p := $api.PathParams}}, {{$p}} {{end}})
+func (c *Client) {{$api.Name}}(ctx context.Context, {{range $_,$i := $api.Params}}{{$i.Name}} {{$i.Type}},{{end}} result interface{}, params ...Param) error {
+	urlStr := c.Endpoint + fmt.Sprintf("{{$api.Path}}"{{range $__,$p := $api.PathParams}}, {{$p.Name}} {{end}})
 	
 	req, err := http.NewRequest("{{$api.Method}}", urlStr, encode({{$api.Body}}))
 	if err != nil {
