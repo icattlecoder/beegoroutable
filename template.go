@@ -2,6 +2,7 @@ package beegoroutable
 
 import (
 	"bytes"
+	"fmt"
 	"go/format"
 	"strings"
 	"text/template"
@@ -29,8 +30,9 @@ func SetGlobalParamTypeMapping(m string) {
 }
 
 type Param struct {
-	Name string
-	Type string
+	Name         string
+	Type         string
+	OriginalName string
 }
 
 var bodyParam = Param{
@@ -91,8 +93,9 @@ func (a *Api) parse() {
 		pathItems = append(pathItems, "%v")
 
 		param := Param{
-			Name: legalVarName(v[1:]),
-			Type: getParamType(v[1:]),
+			Name:         legalVarName(v[1:]),
+			OriginalName: v[1:],
+			Type:         getParamType(v[1:]),
 		}
 		a.PathParams = append(a.PathParams, param)
 	}
@@ -105,6 +108,15 @@ func (a *Api) parse() {
 		a.Params = append(a.Params, bodyParam)
 	default:
 		a.Body = "nil"
+	}
+}
+
+func ShowParams(apis []Api) {
+	for i, _ := range apis {
+		apis[i].parse()
+		for _, p := range apis[i].PathParams {
+			fmt.Println(apis[i].Method, apis[i].Path, p.OriginalName)
+		}
 	}
 }
 

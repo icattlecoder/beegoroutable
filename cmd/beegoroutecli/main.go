@@ -143,6 +143,7 @@ var (
 	pkg           = flag.String("pkg", "", "pkg name")
 	name          = flag.String("name", "", "client name, like DeckJob")
 	pathParamType = flag.String("type", "", `path params type mapping, like "publish_id,app_id:int64;env:string"`)
+	showParams    = flag.Bool("showparam", false, "just show all params name")
 )
 
 func main() {
@@ -168,6 +169,12 @@ func main() {
 	ast.Walk(v, f)
 
 	v.HandleFound()
+
+	if *showParams {
+		beegoroutable.ShowParams(v.apis)
+		return
+	}
+
 	code, err := beegoroutable.GenerateCode(*pkg, *name, v.apis)
 	if err != nil {
 		log.Fatalln("GenerateCode failed:", err)
