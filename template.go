@@ -215,6 +215,38 @@ func New(endPoint string, client *http.Client) {{.ClientName}} {
 	}
 }
 
+func NewParam() *Param {
+	return &Param{}
+}
+
+type keyAdder interface {
+	Add(key, value string)
+}
+
+// drop last one if len of pairs is odd
+func (p *Param) add(store keyAdder, pairs ...interface{}) {
+	pairs = pairs[0 : len(pairs)/2*2]
+	for i := 0; i < len(pairs); i += 2 {
+		store.Add(fmt.Sprintf("%v", pairs[i]), fmt.Sprintf("%v", pairs[i+1]))
+	}
+}
+
+func (p *Param) WithHeaders(pairs ...interface{}) *Param {
+	if p.Header == nil {
+		p.Header = http.Header{}
+	}
+	p.add(p.Header, pairs...)
+	return p
+}
+
+func (p *Param) WithQueries(pairs ...interface{}) *Param {
+	if p.Query == nil {
+		p.Query = url.Values{}
+	}
+	p.add(p.Query, pairs...)
+	return p
+}
+
 func encode(body interface{}) io.Reader {
 	if body == nil {
 		return nil
